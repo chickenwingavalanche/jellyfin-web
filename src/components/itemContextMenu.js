@@ -467,13 +467,15 @@ function executeCommand(item, id, options) {
             }
             case 'download-m3u8': {
 
-                const make_m3u = urls => {
+                const make_m3u = items => {
                     // M3U8 playlist header
                     let playlist = "#EXTM3U\n";
 
-                    // Loop through the array of URLs and format each entry
-                    urls.forEach(url => {
-                        playlist += "#EXTINF:-1,\n"; // Duration is -1 for unknown
+                    // Loop through the array of Items and add an entry for each
+                    items.forEach(item => {
+                        const url = apiClient.getItemDownloadUrl(item.Id);
+                        const name = item.Name;
+                        playlist += `#EXTINF:-1,${name}\n`; // Duration is -1 for unknown
                         playlist += `${url}\n`;
                     });
 
@@ -498,18 +500,16 @@ function executeCommand(item, id, options) {
                         }, 0);
                     }
                 } ;
-
                 async function getPlaylistItems(playlistItemId){
                     return await apiClient.getJSON(
-                        apiClient.serverAddress() + "/Playlists/" + item.Id + "/Items/", true
+                        `${apiClient.serverAddress()}/Playlists/${playlistItemId}/Items/`, true
                     )
                 }
+
                 getPlaylistItems(item.Id).then(
                     (resp) => {
-                        let urls = [];
-                        resp.Items.forEach(item => urls.push(apiClient.getItemDownloadUrl(item.Id)))
-                        let m3u = make_m3u(urls);
-                        download(m3u, item.Name + ".m3u8", 'application/x-mpegURL')
+                        let m3u = make_m3u(resp.Items);
+                        download(m3u, item.Name + ".m3u8", 'application/x-mpegURL');
                     }
                 )
 
