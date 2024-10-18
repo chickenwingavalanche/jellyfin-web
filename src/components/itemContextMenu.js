@@ -195,6 +195,15 @@ export async function getCommands(options) {
         }
     }
 
+
+    if(item.Type === BaseItemKind.Playlist) {
+        commands.push({
+            name: 'Download M3U8',
+            id: 'download-m3u8',
+            icon: 'file_download'
+        });
+    }
+
     if (item.CanDelete && options.deleteItem !== false) {
         commands.push({
             name: getDeleteLabel(item.Type),
@@ -454,6 +463,56 @@ function executeCommand(item, id, options) {
                 }
 
                 getResolveFunction(getResolveFunction(resolve, id), id)();
+                break;
+            }
+            case 'download-m3u8': {
+
+                const make_m3u = urls => {
+                    // M3U8 playlist header
+                    let playlist = "#EXTM3U\n";
+
+                    // Loop through the array of URLs and format each entry
+                    urls.forEach(url => {
+                        playlist += "#EXTINF:-1,\n"; // Duration is -1 for unknown
+                        playlist += `${url}\n`;
+                    });
+
+                    return playlist;
+                }
+
+                // Function to download data to a file
+                const download = (data, filename, type) => {
+                    const file = new Blob([data], {type: type});
+                    if (window.navigator.msSaveOrOpenBlob) // IE10+
+                        window.navigator.msSaveOrOpenBlob(file, filename);
+                    else { // Others
+                        const a = document.createElement("a");
+                        const url = URL.createObjectURL(file);
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        setTimeout(function() {
+                            document.body.removeChild(a);
+                            window.URL.revokeObjectURL(url);
+                        }, 0);
+                    }
+                } ;
+
+                async function getPlaylistItems(playlistItemId){
+                    return await apiClient.getJSON(
+                        apiClient.serverAddress() + "/Playlists/" + item.Id + "/Items/", true
+                    )
+                }
+                getPlaylistItems(item.Id).then(
+                    (resp) => {
+                        let urls = [];
+                        resp.Items.forEach(item => urls.push(apiClient.getItemDownloadUrl(item.Id)))
+                        let m3u = make_m3u(urls);
+                        download(m3u, item.Name + ".m3u8", 'application/x-mpegURL')
+                    }
+                )
+
                 break;
             }
             case 'copy-stream': {
