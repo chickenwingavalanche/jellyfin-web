@@ -192,6 +192,12 @@ export async function getCommands(options) {
                 id: 'copy-stream',
                 icon: 'content_copy'
             });
+
+            commands.push({
+                name: 'Download M3U8',
+                id: 'download-m3u8-single',
+                icon: 'file_download'
+            });
         }
     }
 
@@ -382,6 +388,41 @@ function getResolveFunction(resolve, commandId, changed, deleted, itemId) {
     };
 }
 
+const make_m3u = (apiClient, items) => {
+    // M3U8 playlist header
+    let playlist = "#EXTM3U\n";
+
+    // Loop through the array of Items and add an entry for each
+    items.forEach(item => {
+        const url = apiClient.getItemDownloadUrl(item.Id);
+        const name = item.Name;
+        playlist += `#EXTINF:-1,${name}\n`; // Duration is -1 for unknown
+        playlist += `${url}\n`;
+    });
+
+    return playlist;
+}
+
+// Function to download data to a file
+const download = (data, filename, type) => {
+    const file = new Blob([data], {type: type});
+    if (window.navigator.msSaveOrOpenBlob) // IE10+
+        window.navigator.msSaveOrOpenBlob(file, filename);
+    else { // Others
+        const a = document.createElement("a");
+        const url = URL.createObjectURL(file);
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function() {
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }, 0);
+    }
+} ;
+
+
 function executeCommand(item, id, options) {
     const itemId = item.Id;
     const serverId = item.ServerId;
@@ -465,41 +506,11 @@ function executeCommand(item, id, options) {
                 getResolveFunction(getResolveFunction(resolve, id), id)();
                 break;
             }
+            case 'download-m3u8-single': {
+                download(make_m3u(apiClient, [item]), item.Name + ".m3u8", "application/x-mpegURL");
+                break;
+            }
             case 'download-m3u8': {
-
-                const make_m3u = items => {
-                    // M3U8 playlist header
-                    let playlist = "#EXTM3U\n";
-
-                    // Loop through the array of Items and add an entry for each
-                    items.forEach(item => {
-                        const url = apiClient.getItemDownloadUrl(item.Id);
-                        const name = item.Name;
-                        playlist += `#EXTINF:-1,${name}\n`; // Duration is -1 for unknown
-                        playlist += `${url}\n`;
-                    });
-
-                    return playlist;
-                }
-
-                // Function to download data to a file
-                const download = (data, filename, type) => {
-                    const file = new Blob([data], {type: type});
-                    if (window.navigator.msSaveOrOpenBlob) // IE10+
-                        window.navigator.msSaveOrOpenBlob(file, filename);
-                    else { // Others
-                        const a = document.createElement("a");
-                        const url = URL.createObjectURL(file);
-                        a.href = url;
-                        a.download = filename;
-                        document.body.appendChild(a);
-                        a.click();
-                        setTimeout(function() {
-                            document.body.removeChild(a);
-                            window.URL.revokeObjectURL(url);
-                        }, 0);
-                    }
-                } ;
                 async function getPlaylistItems(playlistItemId){
                     return await apiClient.getJSON(
                         `${apiClient.serverAddress()}/Playlists/${playlistItemId}/Items/`, true
@@ -508,8 +519,8 @@ function executeCommand(item, id, options) {
 
                 getPlaylistItems(item.Id).then(
                     (resp) => {
-                        let m3u = make_m3u(resp.Items);
-                        download(m3u, item.Name + ".m3u8", 'application/x-mpegURL');
+                        let m3u = make_m3u(apiClient, resp.Items);
+                        download(m3u, item.Name + ".m3u8", "application/x-mpegURL");
                     }
                 )
 
